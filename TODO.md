@@ -27,9 +27,10 @@ Deliverables:
   - Uses linear projections W_Q, W_K, W_V for each head
   - Supports self-attention and cross-attention patterns
   - Base model: h=8 heads, d_model=512, d_k=d_v=64
-- [ ] 2.3 Implement Position-wise Feed-Forward Network
-  - FFN(x) = max(0, xW1 + b1)W2 + b2
-  - Inner layer dimension d_ff=2048
+- [x] 2.3 Implement Position-wise Feed-Forward Network
+  - Implemented FFN(x) = max(0, xW1 + b1)W2 + b2
+  - Two linear transformations with ReLU activation
+  - Inner layer dimension d_ff=2048, applied position-wise
 - [ ] 2.4 Implement Positional Encoding
   - Sinusoidal positional encoding as per paper
   - PE(pos, 2i) = sin(pos/10000^(2i/d_model))
