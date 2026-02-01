@@ -103,7 +103,13 @@ Deliverables:
   - Special tokens: PAD, UNK, BOS, EOS
   - pad_sequences function for batch padding
   - create_padding_mask_from_lengths utility
-- [ ] 6.2 Implement data loading for WMT translation dataset
+- [x] 6.2 Implement data loading for WMT translation dataset
+  - TranslationDataset: loads parallel source-target pairs from lists or files
+  - TranslationCollator: batches with padding and mask creation
+  - create_translation_dataloader: convenience function for DataLoader creation
+  - SortedBatchSampler: groups similar-length sequences to reduce padding
+  - BucketIterator: sophisticated length-based batching
+  - load_wmt_dataset: HuggingFace datasets integration (optional)
 - [ ] 6.3 Implement batching with dynamic padding
 
 #### 7. Documentation and README [NOT STARTED]
