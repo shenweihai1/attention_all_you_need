@@ -79,7 +79,12 @@ Deliverables:
   - Inverse square root decay after warmup
   - Also includes WarmupScheduler and InverseSquareRootScheduler variants
   - Convenience functions: get_transformer_scheduler, get_lr_at_step
-- [ ] 5.2 Implement label smoothing (epsilon=0.1)
+- [x] 5.2 Implement label smoothing (epsilon=0.1)
+  - LabelSmoothingLoss: uses KL divergence with smoothed targets
+  - LabelSmoothingCrossEntropy: alternative implementation using CE formulation
+  - Functional interface: label_smoothing_loss()
+  - Supports padding token masking and different reduction modes
+  - Default smoothing epsilon=0.1 as per paper
 - [ ] 5.3 Create training loop with gradient accumulation support
 
 #### 6. Data Processing [NOT STARTED]

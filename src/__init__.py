@@ -33,3 +33,8 @@ from src.scheduler import (
     get_transformer_scheduler,
     get_lr_at_step,
 )
+from src.label_smoothing import (
+    LabelSmoothingLoss,
+    LabelSmoothingCrossEntropy,
+    label_smoothing_loss,
+)
