@@ -16,6 +16,7 @@ from src.positional_encoding import PositionalEncoding
 from src.encoder import Encoder
 from src.decoder import Decoder
 from src.attention import create_causal_mask, create_padding_mask
+from src.init import init_transformer_weights, init_bert_weights
 
 
 class Transformer(nn.Module):
@@ -118,6 +119,29 @@ class Transformer(nn.Module):
 
         # Final linear projection to vocabulary
         self.output_projection = nn.Linear(d_model, tgt_vocab_size)
+
+        # Initialize weights
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        """Initialize all weights using Xavier uniform initialization."""
+        self.apply(lambda m: init_transformer_weights(m, d_model=self.d_model))
+
+    def init_weights(self, method: str = "xavier") -> None:
+        """
+        Reinitialize all weights in the model.
+
+        Args:
+            method: Initialization method. Options:
+                - "xavier": Xavier uniform (default, from original paper)
+                - "bert": Normal with std=0.02 (BERT-style)
+        """
+        if method == "xavier":
+            self.apply(lambda m: init_transformer_weights(m, d_model=self.d_model))
+        elif method == "bert":
+            self.apply(init_bert_weights)
+        else:
+            raise ValueError(f"Unknown initialization method: {method}")
 
     def forward(
         self,

@@ -55,7 +55,7 @@ Deliverables:
   - Final layer normalization after all layers
   - Supports target mask (causal) and memory mask (padding)
 
-#### 4. Full Transformer Model [IN PROGRESS]
+#### 4. Full Transformer Model [COMPLETED]
 - [x] 4.1 Implement Input Embedding with scaling (multiply by sqrt(d_model))
   - TransformerEmbedding class wrapping nn.Embedding
   - Scales embeddings by sqrt(d_model) as per paper
@@ -65,7 +65,12 @@ Deliverables:
   - Final linear projection to target vocabulary size
   - Automatic mask generation for padding and causal attention
   - Autoregressive generation with greedy decoding support
-- [ ] 4.3 Implement weight initialization as per paper
+- [x] 4.3 Implement weight initialization as per paper
+  - Xavier uniform initialization for Linear layers
+  - Normal distribution (std=d_model^-0.5) for Embeddings
+  - LayerNorm initialized to weight=1, bias=0
+  - BERT-style alternative initialization (std=0.02)
+  - Auto-initialization on model creation
 
 #### 5. Training Infrastructure [NOT STARTED]
 - [ ] 5.1 Implement learning rate scheduler (warmup + inverse sqrt decay)
