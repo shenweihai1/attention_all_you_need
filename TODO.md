@@ -42,7 +42,10 @@ Deliverables:
   - Multi-head self-attention with residual connection and layer norm
   - Position-wise FFN with residual connection and layer norm
   - Dropout on sublayer outputs before residual addition
-- [ ] 3.2 Implement Encoder Stack (N=6 layers for base model)
+- [x] 3.2 Implement Encoder Stack (N=6 layers for base model)
+  - Stack of N identical EncoderLayer modules
+  - Final layer normalization after all layers
+  - Supports optional source mask for padding
 - [ ] 3.3 Implement Decoder Layer (masked self-attention + cross-attention + FFN)
 - [ ] 3.4 Implement Decoder Stack (N=6 layers for base model)
 

@@ -6,7 +6,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from src.encoder import EncoderLayer
+from src.encoder import EncoderLayer, Encoder
 from src.attention import create_padding_mask
 
 
@@ -233,6 +233,330 @@ class TestEncoderLayer:
             output = layer(x)
             assert not torch.isnan(output).any()
             assert not torch.isinf(output).any()
+
+
+class TestEncoder:
+    """Tests for the Encoder module (full encoder stack)."""
+
+    def test_initialization_default(self):
+        """Test Encoder initialization with default parameters."""
+        encoder = Encoder()
+        assert encoder.n_layers == 6
+        assert encoder.d_model == 512
+        assert encoder.n_heads == 8
+        assert encoder.d_ff == 2048
+
+    def test_initialization_custom(self):
+        """Test Encoder initialization with custom parameters."""
+        encoder = Encoder(n_layers=4, d_model=256, n_heads=4, d_ff=1024, dropout=0.2)
+        assert encoder.n_layers == 4
+        assert encoder.d_model == 256
+        assert encoder.n_heads == 4
+        assert encoder.d_ff == 1024
+
+    def test_output_shape(self):
+        """Test that output has correct shape."""
+        d_model = 512
+        encoder = Encoder(n_layers=6, d_model=d_model, n_heads=8, d_ff=2048)
+
+        batch, seq_len = 2, 10
+        x = torch.randn(batch, seq_len, d_model)
+        output = encoder(x)
+
+        assert output.shape == (batch, seq_len, d_model)
+
+    def test_output_shape_various_sizes(self):
+        """Test output shape with various batch and sequence sizes."""
+        encoder = Encoder(n_layers=3, d_model=256, n_heads=4, d_ff=1024)
+
+        test_cases = [
+            (1, 1, 256),
+            (1, 100, 256),
+            (32, 50, 256),
+            (4, 512, 256),
+        ]
+
+        for batch, seq_len, d_model in test_cases:
+            x = torch.randn(batch, seq_len, d_model)
+            output = encoder(x)
+            assert output.shape == (batch, seq_len, d_model)
+
+    def test_has_correct_number_of_layers(self):
+        """Test that Encoder has the correct number of layers."""
+        for n_layers in [1, 3, 6, 12]:
+            encoder = Encoder(n_layers=n_layers, d_model=256, n_heads=4, d_ff=1024)
+            assert len(encoder.layers) == n_layers
+
+    def test_with_padding_mask(self):
+        """Test Encoder with padding mask."""
+        encoder = Encoder(n_layers=3, d_model=256, n_heads=4, d_ff=1024, dropout=0.0)
+
+        batch, seq_len = 2, 6
+        x = torch.randn(batch, seq_len, 256)
+
+        # Create padding mask
+        seq = torch.tensor([[1, 2, 3, 0, 0, 0], [1, 2, 3, 4, 0, 0]])
+        pad_mask = create_padding_mask(seq, pad_idx=0)
+
+        output = encoder(x, src_mask=pad_mask)
+
+        assert output.shape == (batch, seq_len, 256)
+        assert not torch.isnan(output).any()
+
+    def test_gradient_flow(self):
+        """Test that gradients flow through all encoder layers."""
+        encoder = Encoder(n_layers=3, d_model=256, n_heads=4, d_ff=1024)
+        x = torch.randn(2, 8, 256, requires_grad=True)
+
+        output = encoder(x)
+        loss = output.sum()
+        loss.backward()
+
+        assert x.grad is not None
+        assert not torch.isnan(x.grad).any()
+
+        # Check gradients on parameters in all layers
+        for i, layer in enumerate(encoder.layers):
+            for name, param in layer.named_parameters():
+                assert param.grad is not None, f"No gradient for layer {i} {name}"
+                assert not torch.isnan(param.grad).any(), f"NaN gradient for layer {i} {name}"
+
+    def test_has_final_layer_norm(self):
+        """Test that Encoder has final layer normalization."""
+        encoder = Encoder(n_layers=6, d_model=512, n_heads=8, d_ff=2048)
+
+        assert hasattr(encoder, 'norm')
+        assert isinstance(encoder.norm, nn.LayerNorm)
+        assert encoder.norm.normalized_shape == (512,)
+
+    def test_eval_mode_deterministic(self):
+        """Test that eval mode produces deterministic outputs."""
+        encoder = Encoder(n_layers=3, d_model=256, n_heads=4, d_ff=1024, dropout=0.5)
+        encoder.eval()
+
+        x = torch.randn(2, 8, 256)
+        output1 = encoder(x)
+        output2 = encoder(x)
+
+        assert torch.allclose(output1, output2)
+
+    def test_train_mode_with_dropout(self):
+        """Test that training mode applies dropout."""
+        torch.manual_seed(42)
+        encoder = Encoder(n_layers=3, d_model=256, n_heads=4, d_ff=1024, dropout=0.5)
+        encoder.train()
+
+        x = torch.randn(2, 8, 256)
+        output1 = encoder(x)
+        output2 = encoder(x)
+
+        # With dropout, outputs should differ
+        assert not torch.allclose(output1, output2)
+
+    def test_batch_independence(self):
+        """Test that batches are processed independently."""
+        encoder = Encoder(n_layers=3, d_model=256, n_heads=4, d_ff=1024, dropout=0.0)
+        encoder.eval()
+
+        x = torch.randn(2, 8, 256)
+
+        output_batched = encoder(x)
+        output0 = encoder(x[0:1])
+        output1 = encoder(x[1:2])
+
+        assert torch.allclose(output_batched[0:1], output0, atol=1e-5)
+        assert torch.allclose(output_batched[1:2], output1, atol=1e-5)
+
+    def test_parameter_count(self):
+        """Test that the model has reasonable number of parameters."""
+        n_layers, d_model, n_heads, d_ff = 6, 512, 8, 2048
+        encoder = Encoder(n_layers=n_layers, d_model=d_model, n_heads=n_heads, d_ff=d_ff)
+
+        # Per encoder layer:
+        # Multi-head attention: 4 * d_model^2
+        # Feed-forward: d_model * d_ff + d_ff + d_ff * d_model + d_model
+        # Layer norms: 4 * d_model (2 norms per layer)
+        mha_params = 4 * d_model * d_model
+        ff_params = d_model * d_ff + d_ff + d_ff * d_model + d_model
+        ln_params = 4 * d_model
+        layer_params = mha_params + ff_params + ln_params
+
+        # Total: N layers + final layer norm (2 * d_model)
+        expected_params = n_layers * layer_params + 2 * d_model
+
+        total_params = sum(p.numel() for p in encoder.parameters())
+        assert total_params == expected_params
+
+    def test_different_configurations(self):
+        """Test various n_layers, d_model, n_heads, d_ff combinations."""
+        configs = [
+            (2, 128, 4, 512),
+            (4, 256, 8, 1024),
+            (6, 512, 8, 2048),
+            (8, 768, 12, 3072),
+        ]
+
+        for n_layers, d_model, n_heads, d_ff in configs:
+            encoder = Encoder(n_layers=n_layers, d_model=d_model, n_heads=n_heads, d_ff=d_ff)
+            x = torch.randn(1, 4, d_model)
+            output = encoder(x)
+
+            assert output.shape == (1, 4, d_model)
+            assert not torch.isnan(output).any()
+
+    def test_extra_repr(self):
+        """Test the extra_repr method."""
+        encoder = Encoder(n_layers=6, d_model=512, n_heads=8, d_ff=2048)
+        repr_str = encoder.extra_repr()
+
+        assert "n_layers=6" in repr_str
+        assert "d_model=512" in repr_str
+        assert "n_heads=8" in repr_str
+        assert "d_ff=2048" in repr_str
+
+    def test_no_nan_output(self):
+        """Test that output contains no NaN values."""
+        encoder = Encoder(n_layers=3, d_model=256, n_heads=4, d_ff=1024)
+
+        # Test with various input values
+        test_inputs = [
+            torch.randn(2, 8, 256),
+            torch.zeros(2, 8, 256),
+            torch.ones(2, 8, 256),
+            torch.randn(2, 8, 256) * 10,
+        ]
+
+        for x in test_inputs:
+            output = encoder(x)
+            assert not torch.isnan(output).any()
+            assert not torch.isinf(output).any()
+
+    def test_single_layer_encoder(self):
+        """Test encoder with a single layer."""
+        encoder = Encoder(n_layers=1, d_model=256, n_heads=4, d_ff=1024, dropout=0.0)
+
+        x = torch.randn(2, 10, 256)
+        output = encoder(x)
+
+        assert output.shape == (2, 10, 256)
+        assert not torch.isnan(output).any()
+
+    def test_deep_encoder(self):
+        """Test encoder with many layers."""
+        encoder = Encoder(n_layers=12, d_model=256, n_heads=4, d_ff=1024, dropout=0.0)
+
+        x = torch.randn(2, 10, 256)
+        output = encoder(x)
+
+        assert output.shape == (2, 10, 256)
+        assert not torch.isnan(output).any()
+
+
+class TestEncoderIntegration:
+    """Integration tests for the full Encoder."""
+
+    def test_with_positional_encoding(self):
+        """Test Encoder with positional encoding added to input."""
+        from src.positional_encoding import PositionalEncoding
+
+        d_model = 256
+        pe = PositionalEncoding(d_model=d_model, max_seq_len=100, dropout=0.0)
+        encoder = Encoder(n_layers=3, d_model=d_model, n_heads=4, d_ff=1024, dropout=0.0)
+
+        # Simulate embedded input
+        x = torch.randn(2, 50, d_model)
+
+        # Add positional encoding
+        x = pe(x)
+
+        # Pass through encoder
+        output = encoder(x)
+
+        assert output.shape == (2, 50, d_model)
+        assert not torch.isnan(output).any()
+
+    def test_with_embedding_input(self):
+        """Test Encoder with embedding layer input."""
+        from src.positional_encoding import PositionalEncoding
+
+        vocab_size = 1000
+        d_model = 256
+
+        embedding = nn.Embedding(vocab_size, d_model)
+        pe = PositionalEncoding(d_model=d_model, max_seq_len=100, dropout=0.0)
+        encoder = Encoder(n_layers=3, d_model=d_model, n_heads=4, d_ff=1024, dropout=0.0)
+
+        # Create token indices
+        tokens = torch.randint(0, vocab_size, (2, 50))
+
+        # Embed tokens and add positional encoding
+        x = embedding(tokens)
+        x = pe(x)
+
+        # Pass through encoder
+        output = encoder(x)
+
+        assert output.shape == (2, 50, d_model)
+        assert not torch.isnan(output).any()
+
+    def test_full_encoder_pipeline(self):
+        """Test full encoder pipeline with embedding, PE, and encoder stack."""
+        from src.positional_encoding import PositionalEncoding
+        import math
+
+        vocab_size = 1000
+        d_model = 256
+        n_layers = 6
+        seq_len = 50
+
+        # Components
+        embedding = nn.Embedding(vocab_size, d_model)
+        pe = PositionalEncoding(d_model=d_model, max_seq_len=100, dropout=0.1)
+        encoder = Encoder(n_layers=n_layers, d_model=d_model, n_heads=4, d_ff=1024, dropout=0.1)
+
+        # Create input
+        tokens = torch.randint(0, vocab_size, (2, seq_len))
+
+        # Embed and scale by sqrt(d_model) as per paper
+        x = embedding(tokens) * math.sqrt(d_model)
+
+        # Add positional encoding
+        x = pe(x)
+
+        # Pass through encoder
+        output = encoder(x)
+
+        assert output.shape == (2, seq_len, d_model)
+        assert not torch.isnan(output).any()
+
+    def test_gradient_flow_full_pipeline(self):
+        """Test gradient flow through full encoder pipeline."""
+        from src.positional_encoding import PositionalEncoding
+        import math
+
+        vocab_size = 100
+        d_model = 64
+        n_layers = 2
+
+        embedding = nn.Embedding(vocab_size, d_model)
+        pe = PositionalEncoding(d_model=d_model, max_seq_len=50, dropout=0.0)
+        encoder = Encoder(n_layers=n_layers, d_model=d_model, n_heads=4, d_ff=256, dropout=0.0)
+
+        tokens = torch.randint(0, vocab_size, (2, 10))
+        x = embedding(tokens) * math.sqrt(d_model)
+        x = pe(x)
+        output = encoder(x)
+
+        loss = output.sum()
+        loss.backward()
+
+        # Check gradients on embedding
+        assert embedding.weight.grad is not None
+        assert not torch.isnan(embedding.weight.grad).any()
+
+        # Check gradients on encoder
+        for param in encoder.parameters():
+            assert param.grad is not None
 
 
 class TestEncoderLayerIntegration:
