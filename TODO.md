@@ -17,10 +17,11 @@ Deliverables:
 - [x] 1.2 Create requirements.txt with dependencies
 - [x] 1.3 Create base configuration system for model hyperparameters
 
-#### 2. Core Transformer Components [NOT STARTED]
-- [ ] 2.1 Implement Scaled Dot-Product Attention
-  - Implement attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) V
-  - Handle optional masking for decoder self-attention
+#### 2. Core Transformer Components [IN PROGRESS]
+- [x] 2.1 Implement Scaled Dot-Product Attention
+  - Implemented attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) V
+  - Added optional masking support for decoder self-attention
+  - Includes helper functions: create_causal_mask, create_padding_mask
 - [ ] 2.2 Implement Multi-Head Attention (without using torch.nn.MultiheadAttention)
   - Split into h heads, apply attention, concatenate, project
   - Base model: h=8 heads, d_model=512, d_k=d_v=64
