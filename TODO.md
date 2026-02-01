@@ -46,7 +46,10 @@ Deliverables:
   - Stack of N identical EncoderLayer modules
   - Final layer normalization after all layers
   - Supports optional source mask for padding
-- [ ] 3.3 Implement Decoder Layer (masked self-attention + cross-attention + FFN)
+- [x] 3.3 Implement Decoder Layer (masked self-attention + cross-attention + FFN)
+  - Masked multi-head self-attention (prevents attending to future positions)
+  - Multi-head cross-attention (attends to encoder output)
+  - Position-wise FFN with residual connections and layer normalization
 - [ ] 3.4 Implement Decoder Stack (N=6 layers for base model)
 
 #### 4. Full Transformer Model [NOT STARTED]
