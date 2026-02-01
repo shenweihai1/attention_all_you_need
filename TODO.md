@@ -95,8 +95,14 @@ Deliverables:
   - TrainerConfig dataclass for configuration
   - create_trainer convenience function
 
-#### 6. Data Processing [NOT STARTED]
-- [ ] 6.1 Implement tokenization utilities (BPE or similar)
+#### 6. Data Processing [IN PROGRESS]
+- [x] 6.1 Implement tokenization utilities (BPE or similar)
+  - Tokenizer class wrapping SentencePiece for BPE tokenization
+  - SimpleTokenizer for whitespace-based tokenization (testing/simple cases)
+  - Support for training from text files or text lists
+  - Special tokens: PAD, UNK, BOS, EOS
+  - pad_sequences function for batch padding
+  - create_padding_mask_from_lengths utility
 - [ ] 6.2 Implement data loading for WMT translation dataset
 - [ ] 6.3 Implement batching with dynamic padding
 
