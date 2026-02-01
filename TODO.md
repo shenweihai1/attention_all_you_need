@@ -72,8 +72,13 @@ Deliverables:
   - BERT-style alternative initialization (std=0.02)
   - Auto-initialization on model creation
 
-#### 5. Training Infrastructure [NOT STARTED]
-- [ ] 5.1 Implement learning rate scheduler (warmup + inverse sqrt decay)
+#### 5. Training Infrastructure [IN PROGRESS]
+- [x] 5.1 Implement learning rate scheduler (warmup + inverse sqrt decay)
+  - TransformerScheduler: implements lrate = d_model^(-0.5) * min(step^(-0.5), step * warmup^(-1.5))
+  - Linear warmup during first warmup_steps (default 4000)
+  - Inverse square root decay after warmup
+  - Also includes WarmupScheduler and InverseSquareRootScheduler variants
+  - Convenience functions: get_transformer_scheduler, get_lr_at_step
 - [ ] 5.2 Implement label smoothing (epsilon=0.1)
 - [ ] 5.3 Create training loop with gradient accumulation support
 
