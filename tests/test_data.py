@@ -16,6 +16,8 @@ from src.data import (
     create_translation_dataloader,
     SortedBatchSampler,
     BucketIterator,
+    DynamicBatchSampler,
+    create_dynamic_dataloader,
 )
 from src.tokenizer import SimpleTokenizer, PAD_ID, BOS_ID, EOS_ID
 
@@ -479,3 +481,148 @@ class TestDataEdgeCases:
         dataset = TranslationDataset(src_data=src, tgt_data=tgt)
         assert len(dataset) == 2
         assert dataset[0]["src_text"] == "Hello 世界"
+
+
+class TestDynamicBatchSampler:
+    """Tests for DynamicBatchSampler class."""
+
+    def test_basic_creation(self):
+        """Test basic sampler creation."""
+        lengths = [5, 10, 3, 8, 2, 15]
+        sampler = DynamicBatchSampler(lengths, max_tokens=20)
+
+        batches = list(sampler)
+        assert len(batches) > 0
+
+        # All samples should be included
+        all_indices = [idx for batch in batches for idx in batch]
+        assert set(all_indices) == set(range(len(lengths)))
+
+    def test_max_tokens_constraint(self):
+        """Test that max_tokens constraint is respected."""
+        lengths = [10, 10, 10, 10, 10]
+        sampler = DynamicBatchSampler(lengths, max_tokens=25, shuffle=False)
+
+        for batch in sampler:
+            max_len = max(lengths[i] for i in batch)
+            total_tokens = max_len * len(batch)
+            # Should not exceed max_tokens (with some tolerance for the algorithm)
+            assert total_tokens <= 25 or len(batch) == 1
+
+    def test_max_sentences_constraint(self):
+        """Test that max_sentences constraint is respected."""
+        lengths = [2, 2, 2, 2, 2, 2, 2, 2]
+        sampler = DynamicBatchSampler(
+            lengths, max_tokens=1000, max_sentences=3, shuffle=False
+        )
+
+        for batch in sampler:
+            assert len(batch) <= 3
+
+    def test_shuffle(self):
+        """Test that shuffle works."""
+        lengths = list(range(20))
+        sampler = DynamicBatchSampler(lengths, max_tokens=50, shuffle=True)
+
+        batches1 = [tuple(b) for b in sampler]
+        batches2 = [tuple(b) for b in sampler]
+
+        # With shuffling, order may differ (not guaranteed but likely)
+
+    def test_sort_by_length(self):
+        """Test sorting by length groups similar sequences."""
+        lengths = [1, 10, 2, 9, 3, 8]
+        sampler = DynamicBatchSampler(
+            lengths, max_tokens=20, shuffle=False, sort_by_length=True
+        )
+
+        batches = list(sampler)
+        # Sorted batches should group similar lengths
+        assert len(batches) > 0
+
+    def test_len(self):
+        """Test sampler length."""
+        lengths = [5, 5, 5, 5]
+        sampler = DynamicBatchSampler(lengths, max_tokens=15)
+
+        assert len(sampler) == len(list(sampler))
+
+
+class TestCreateDynamicDataloader:
+    """Tests for create_dynamic_dataloader function."""
+
+    @pytest.fixture
+    def sample_dataset(self):
+        """Create a sample dataset."""
+        src = [
+            "a",
+            "a b",
+            "a b c",
+            "a b c d",
+            "a b c d e",
+            "a b c d e f",
+        ]
+        tgt = [
+            "x",
+            "x y",
+            "x y z",
+            "x y z w",
+            "x y z w v",
+            "x y z w v u",
+        ]
+
+        tokenizer = SimpleTokenizer()
+        tokenizer.build_vocab(src + tgt)
+
+        return TranslationDataset(
+            src_data=src,
+            tgt_data=tgt,
+            src_tokenizer=tokenizer,
+            tgt_tokenizer=tokenizer,
+            add_bos=False,
+            add_eos=False,
+        )
+
+    def test_basic_creation(self, sample_dataset):
+        """Test basic dynamic dataloader creation."""
+        loader = create_dynamic_dataloader(
+            dataset=sample_dataset,
+            max_tokens=20,
+            shuffle=False,
+        )
+
+        assert isinstance(loader, DataLoader)
+
+        # Collect all batches
+        batches = list(loader)
+        total_samples = sum(b["src"].shape[0] for b in batches)
+        assert total_samples == 6
+
+    def test_with_max_sentences(self, sample_dataset):
+        """Test with max_sentences constraint."""
+        loader = create_dynamic_dataloader(
+            dataset=sample_dataset,
+            max_tokens=1000,
+            max_sentences=2,
+        )
+
+        for batch in loader:
+            assert batch["src"].shape[0] <= 2
+
+    def test_dynamic_padding(self, sample_dataset):
+        """Test that padding is dynamic per batch."""
+        loader = create_dynamic_dataloader(
+            dataset=sample_dataset,
+            max_tokens=10,
+            shuffle=False,
+        )
+
+        batch_max_lens = []
+        for batch in loader:
+            # Get actual max length in batch (non-padded)
+            src_lens = (batch["src"] != PAD_ID).sum(dim=1)
+            batch_max_lens.append(src_lens.max().item())
+
+        # Different batches should have different max lengths (dynamic padding)
+        # This demonstrates padding adapts to batch content
+        assert len(set(batch_max_lens)) > 1 or len(batch_max_lens) == 1

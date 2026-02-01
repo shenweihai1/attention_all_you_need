@@ -95,7 +95,7 @@ Deliverables:
   - TrainerConfig dataclass for configuration
   - create_trainer convenience function
 
-#### 6. Data Processing [IN PROGRESS]
+#### 6. Data Processing [COMPLETED]
 - [x] 6.1 Implement tokenization utilities (BPE or similar)
   - Tokenizer class wrapping SentencePiece for BPE tokenization
   - SimpleTokenizer for whitespace-based tokenization (testing/simple cases)
@@ -110,7 +110,11 @@ Deliverables:
   - SortedBatchSampler: groups similar-length sequences to reduce padding
   - BucketIterator: sophisticated length-based batching
   - load_wmt_dataset: HuggingFace datasets integration (optional)
-- [ ] 6.3 Implement batching with dynamic padding
+- [x] 6.3 Implement batching with dynamic padding
+  - DynamicBatchSampler: creates batches based on max_tokens constraint
+  - create_dynamic_dataloader: convenience function for token-based batching
+  - Batches adapt padding to actual sequence lengths in each batch
+  - Supports max_sentences cap and length-based sorting
 
 #### 7. Documentation and README [NOT STARTED]
 - [ ] 7.1 Write comprehensive README.md with project overview

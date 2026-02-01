@@ -479,3 +479,157 @@ class BucketIterator:
 
     def __len__(self) -> int:
         return (len(self.dataset) + self.batch_size - 1) // self.batch_size
+
+
+class DynamicBatchSampler:
+    """
+    Batch sampler that creates batches based on maximum tokens.
+
+    Instead of a fixed batch size, this sampler creates batches that
+    contain approximately max_tokens tokens, which is more efficient
+    for GPU memory utilization.
+
+    Args:
+        lengths: List of sequence lengths for each sample
+        max_tokens: Maximum number of tokens per batch
+        max_sentences: Maximum number of sentences per batch (optional cap)
+        shuffle: Whether to shuffle batches
+        drop_last: Drop last incomplete batch
+        sort_by_length: Sort samples by length before batching
+
+    Example:
+        >>> lengths = [len(tokenizer.encode(s)) for s in sentences]
+        >>> sampler = DynamicBatchSampler(lengths, max_tokens=4096)
+        >>> loader = DataLoader(dataset, batch_sampler=sampler)
+    """
+
+    def __init__(
+        self,
+        lengths: List[int],
+        max_tokens: int = 4096,
+        max_sentences: Optional[int] = None,
+        shuffle: bool = True,
+        drop_last: bool = False,
+        sort_by_length: bool = True,
+    ):
+        self.lengths = lengths
+        self.max_tokens = max_tokens
+        self.max_sentences = max_sentences
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+        self.sort_by_length = sort_by_length
+
+        # Pre-compute batches
+        self._batches = self._create_batches()
+
+    def _create_batches(self) -> List[List[int]]:
+        """Create batches respecting max_tokens constraint."""
+        # Get indices, optionally sorted by length
+        if self.sort_by_length:
+            indices = sorted(range(len(self.lengths)), key=lambda i: self.lengths[i])
+        else:
+            indices = list(range(len(self.lengths)))
+
+        batches = []
+        current_batch = []
+        current_max_len = 0
+
+        for idx in indices:
+            sample_len = self.lengths[idx]
+
+            # Calculate what batch size would be with this sample
+            new_max_len = max(current_max_len, sample_len)
+            new_batch_size = len(current_batch) + 1
+            new_tokens = new_max_len * new_batch_size
+
+            # Check constraints
+            exceeds_tokens = new_tokens > self.max_tokens
+            exceeds_sentences = (
+                self.max_sentences is not None
+                and new_batch_size > self.max_sentences
+            )
+
+            if current_batch and (exceeds_tokens or exceeds_sentences):
+                # Finish current batch
+                batches.append(current_batch)
+                current_batch = [idx]
+                current_max_len = sample_len
+            else:
+                current_batch.append(idx)
+                current_max_len = new_max_len
+
+        # Handle last batch
+        if current_batch:
+            if not self.drop_last or len(current_batch) * current_max_len >= self.max_tokens * 0.5:
+                batches.append(current_batch)
+
+        return batches
+
+    def __iter__(self) -> Iterator[List[int]]:
+        batches = self._batches.copy()
+
+        if self.shuffle:
+            import random
+            random.shuffle(batches)
+
+        yield from batches
+
+    def __len__(self) -> int:
+        return len(self._batches)
+
+
+def create_dynamic_dataloader(
+    dataset: TranslationDataset,
+    max_tokens: int = 4096,
+    max_sentences: Optional[int] = None,
+    shuffle: bool = True,
+    num_workers: int = 0,
+    pad_id: int = PAD_ID,
+) -> DataLoader:
+    """
+    Create a DataLoader with dynamic batching based on max tokens.
+
+    This is more memory-efficient than fixed batch sizes as it ensures
+    each batch uses approximately the same amount of memory.
+
+    Args:
+        dataset: TranslationDataset instance
+        max_tokens: Maximum tokens per batch
+        max_sentences: Maximum sentences per batch (optional)
+        shuffle: Whether to shuffle batches
+        num_workers: Number of data loading workers
+        pad_id: Padding token ID
+
+    Returns:
+        DataLoader with dynamic batching
+
+    Example:
+        >>> loader = create_dynamic_dataloader(
+        ...     dataset=dataset,
+        ...     max_tokens=4096,
+        ...     shuffle=True,
+        ... )
+    """
+    # Compute lengths
+    lengths = []
+    for i in range(len(dataset)):
+        item = dataset[i]
+        src_len = len(item["src"]) if "src" in item else 0
+        tgt_len = len(item["tgt"]) if "tgt" in item else 0
+        lengths.append(max(src_len, tgt_len))
+
+    sampler = DynamicBatchSampler(
+        lengths=lengths,
+        max_tokens=max_tokens,
+        max_sentences=max_sentences,
+        shuffle=shuffle,
+    )
+
+    collator = TranslationCollator(pad_id=pad_id)
+
+    return DataLoader(
+        dataset,
+        batch_sampler=sampler,
+        num_workers=num_workers,
+        collate_fn=collator,
+    )
