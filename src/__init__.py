@@ -18,3 +18,4 @@ from src.feedforward import PositionwiseFeedForward
 from src.positional_encoding import PositionalEncoding
 from src.encoder import EncoderLayer, Encoder
 from src.decoder import DecoderLayer, Decoder
+from src.embedding import TransformerEmbedding

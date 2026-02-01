@@ -55,8 +55,11 @@ Deliverables:
   - Final layer normalization after all layers
   - Supports target mask (causal) and memory mask (padding)
 
-#### 4. Full Transformer Model [NOT STARTED]
-- [ ] 4.1 Implement Input Embedding with scaling (multiply by sqrt(d_model))
+#### 4. Full Transformer Model [IN PROGRESS]
+- [x] 4.1 Implement Input Embedding with scaling (multiply by sqrt(d_model))
+  - TransformerEmbedding class wrapping nn.Embedding
+  - Scales embeddings by sqrt(d_model) as per paper
+  - Supports padding_idx for proper gradient masking
 - [ ] 4.2 Implement Full Transformer (encoder + decoder + final linear + softmax)
 - [ ] 4.3 Implement weight initialization as per paper
 
