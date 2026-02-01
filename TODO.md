@@ -18,7 +18,13 @@ Deliverables:
 - [x] 1.3 Create base configuration system for model hyperparameters
 
 #### 2. Core Transformer Components [COMPLETED]
-- [ ] *high* Create two jupyter: 1. How to train the models, you should validate each step, so that i can know each step is correct (for example, show first 3 lines of data); 2. How to use the model to execute a task, same requirement: you should validate each step for me to learn.
+- [x] *high* Create two jupyter: 1. How to train the models, you should validate each step, so that i can know each step is correct (for example, show first 3 lines of data); 2. How to use the model to execute a task, same requirement: you should validate each step for me to learn.
+  - [x] 2.0.7 Create training tutorial notebook (01_training_tutorial.ipynb)
+    - 8 steps: setup, data prep, tokenization, dataloader, model, optimizer/scheduler/loss, training loop, checkpoint
+    - Each step includes VALIDATION section showing outputs
+  - [x] 2.0.8 Create inference/usage tutorial notebook (02_inference_tutorial.ipynb)
+    - 7 steps: setup, model loading, input prep, greedy decoding, built-in generate, batch inference, model internals
+    - Each step includes VALIDATION section with step-by-step output analysis
 - [x] *high* Make a comprehensive markdown book to explain the codebase to let beginners to understand what and why in the code.
   - [x] 2.0.1 Write introduction and architecture overview chapter
   - [x] 2.0.2 Write attention mechanism chapter (scaled dot-product & multi-head)
