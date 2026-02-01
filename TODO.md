@@ -60,7 +60,11 @@ Deliverables:
   - TransformerEmbedding class wrapping nn.Embedding
   - Scales embeddings by sqrt(d_model) as per paper
   - Supports padding_idx for proper gradient masking
-- [ ] 4.2 Implement Full Transformer (encoder + decoder + final linear + softmax)
+- [x] 4.2 Implement Full Transformer (encoder + decoder + final linear + softmax)
+  - Complete encoder-decoder architecture with embeddings and positional encoding
+  - Final linear projection to target vocabulary size
+  - Automatic mask generation for padding and causal attention
+  - Autoregressive generation with greedy decoding support
 - [ ] 4.3 Implement weight initialization as per paper
 
 #### 5. Training Infrastructure [NOT STARTED]
