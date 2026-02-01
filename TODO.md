@@ -17,7 +17,7 @@ Deliverables:
 - [x] 1.2 Create requirements.txt with dependencies
 - [x] 1.3 Create base configuration system for model hyperparameters
 
-#### 2. Core Transformer Components [IN PROGRESS]
+#### 2. Core Transformer Components [COMPLETED]
 - [x] 2.1 Implement Scaled Dot-Product Attention
   - Implemented attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) V
   - Added optional masking support for decoder self-attention
@@ -31,10 +31,11 @@ Deliverables:
   - Implemented FFN(x) = max(0, xW1 + b1)W2 + b2
   - Two linear transformations with ReLU activation
   - Inner layer dimension d_ff=2048, applied position-wise
-- [ ] 2.4 Implement Positional Encoding
-  - Sinusoidal positional encoding as per paper
+- [x] 2.4 Implement Positional Encoding
+  - Implemented sinusoidal positional encoding as per paper
   - PE(pos, 2i) = sin(pos/10000^(2i/d_model))
   - PE(pos, 2i+1) = cos(pos/10000^(2i/d_model))
+  - Pre-computed and registered as buffer for efficiency
 
 #### 3. Encoder and Decoder [NOT STARTED]
 - [ ] 3.1 Implement Encoder Layer (self-attention + FFN + residual + layer norm)
