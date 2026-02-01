@@ -22,8 +22,10 @@ Deliverables:
   - Implemented attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) V
   - Added optional masking support for decoder self-attention
   - Includes helper functions: create_causal_mask, create_padding_mask
-- [ ] 2.2 Implement Multi-Head Attention (without using torch.nn.MultiheadAttention)
-  - Split into h heads, apply attention, concatenate, project
+- [x] 2.2 Implement Multi-Head Attention (without using torch.nn.MultiheadAttention)
+  - Implemented MultiHead(Q, K, V) = Concat(head_1, ..., head_h) W^O
+  - Uses linear projections W_Q, W_K, W_V for each head
+  - Supports self-attention and cross-attention patterns
   - Base model: h=8 heads, d_model=512, d_k=d_v=64
 - [ ] 2.3 Implement Position-wise Feed-Forward Network
   - FFN(x) = max(0, xW1 + b1)W2 + b2

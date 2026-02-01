@@ -1,5 +1,5 @@
 """
-Tests for the Scaled Dot-Product Attention module.
+Tests for the attention modules: Scaled Dot-Product Attention and Multi-Head Attention.
 """
 
 import math
@@ -10,6 +10,7 @@ import torch.nn as nn
 from src.attention import (
     scaled_dot_product_attention,
     ScaledDotProductAttention,
+    MultiHeadAttention,
     create_causal_mask,
     create_padding_mask,
 )
@@ -436,3 +437,290 @@ class TestAttentionIntegration:
 
         # Should produce valid output
         assert not torch.isnan(output).any()
+
+
+class TestMultiHeadAttention:
+    """Tests for the MultiHeadAttention module."""
+
+    def test_initialization(self):
+        """Test MultiHeadAttention initialization with valid parameters."""
+        mha = MultiHeadAttention(d_model=512, n_heads=8, dropout=0.1)
+        assert mha.d_model == 512
+        assert mha.n_heads == 8
+        assert mha.d_k == 64
+        assert mha.dropout is not None
+
+    def test_initialization_no_dropout(self):
+        """Test MultiHeadAttention initialization without dropout."""
+        mha = MultiHeadAttention(d_model=512, n_heads=8, dropout=0.0)
+        assert mha.dropout is None
+
+    def test_initialization_invalid_d_model(self):
+        """Test that initialization fails when d_model is not divisible by n_heads."""
+        with pytest.raises(ValueError, match="divisible"):
+            MultiHeadAttention(d_model=512, n_heads=7)
+
+    def test_output_shape(self):
+        """Test that output has correct shape."""
+        mha = MultiHeadAttention(d_model=512, n_heads=8)
+        batch, seq_len = 2, 10
+
+        x = torch.randn(batch, seq_len, 512)
+        output, attn_weights = mha(x, x, x)
+
+        assert output.shape == (batch, seq_len, 512)
+        assert attn_weights.shape == (batch, 8, seq_len, seq_len)
+
+    def test_different_seq_lengths(self):
+        """Test with different query and key/value sequence lengths (cross-attention)."""
+        mha = MultiHeadAttention(d_model=512, n_heads=8)
+        batch = 2
+        seq_len_q, seq_len_kv = 5, 10
+
+        q = torch.randn(batch, seq_len_q, 512)
+        kv = torch.randn(batch, seq_len_kv, 512)
+
+        output, attn_weights = mha(q, kv, kv)
+
+        assert output.shape == (batch, seq_len_q, 512)
+        assert attn_weights.shape == (batch, 8, seq_len_q, seq_len_kv)
+
+    def test_self_attention_same_input(self):
+        """Test self-attention where Q, K, V are the same."""
+        mha = MultiHeadAttention(d_model=256, n_heads=4)
+        x = torch.randn(2, 8, 256)
+
+        output, _ = mha(x, x, x)
+
+        assert output.shape == x.shape
+        assert not torch.isnan(output).any()
+
+    def test_attention_weights_sum_to_one(self):
+        """Test that attention weights sum to 1 along the key dimension."""
+        mha = MultiHeadAttention(d_model=256, n_heads=4, dropout=0.0)
+        mha.eval()
+
+        x = torch.randn(2, 8, 256)
+        _, attn_weights = mha(x, x, x)
+
+        weight_sums = attn_weights.sum(dim=-1)
+        assert torch.allclose(weight_sums, torch.ones_like(weight_sums), atol=1e-5)
+
+    def test_with_causal_mask(self):
+        """Test MultiHeadAttention with causal mask."""
+        mha = MultiHeadAttention(d_model=256, n_heads=4, dropout=0.0)
+        seq_len = 6
+
+        x = torch.randn(2, seq_len, 256)
+        mask = create_causal_mask(seq_len)
+
+        output, attn_weights = mha(x, x, x, mask=mask)
+
+        # Check causal structure - upper triangle should be near zero
+        for i in range(seq_len):
+            for j in range(i + 1, seq_len):
+                assert (attn_weights[:, :, i, j] < 1e-6).all()
+
+    def test_with_padding_mask(self):
+        """Test MultiHeadAttention with padding mask."""
+        mha = MultiHeadAttention(d_model=256, n_heads=4, dropout=0.0)
+
+        batch, seq_len = 2, 6
+        x = torch.randn(batch, seq_len, 256)
+
+        # Create padding mask
+        seq = torch.tensor([[1, 2, 3, 0, 0, 0], [1, 2, 3, 4, 0, 0]])
+        pad_mask = create_padding_mask(seq, pad_idx=0)
+
+        output, attn_weights = mha(x, x, x, mask=pad_mask)
+
+        # Check padding positions have near-zero attention
+        assert (attn_weights[0, :, :, 3:] < 1e-6).all()
+        assert (attn_weights[1, :, :, 4:] < 1e-6).all()
+
+    def test_gradient_flow(self):
+        """Test that gradients flow through MultiHeadAttention."""
+        mha = MultiHeadAttention(d_model=256, n_heads=4)
+        x = torch.randn(2, 8, 256, requires_grad=True)
+
+        output, _ = mha(x, x, x)
+        loss = output.sum()
+        loss.backward()
+
+        assert x.grad is not None
+        assert not torch.isnan(x.grad).any()
+
+        # Also check gradients on parameters
+        for name, param in mha.named_parameters():
+            assert param.grad is not None, f"No gradient for {name}"
+            assert not torch.isnan(param.grad).any(), f"NaN gradient for {name}"
+
+    def test_parameter_count(self):
+        """Test that the model has the correct number of parameters."""
+        d_model, n_heads = 512, 8
+        mha = MultiHeadAttention(d_model=d_model, n_heads=n_heads)
+
+        # W_Q, W_K, W_V: each is d_model x d_model (no bias)
+        # W_O: d_model x d_model (no bias)
+        expected_params = 4 * (d_model * d_model)
+
+        total_params = sum(p.numel() for p in mha.parameters())
+        assert total_params == expected_params
+
+    def test_eval_mode_deterministic(self):
+        """Test that eval mode produces deterministic outputs."""
+        mha = MultiHeadAttention(d_model=256, n_heads=4, dropout=0.5)
+        mha.eval()
+
+        x = torch.randn(2, 8, 256)
+        output1, _ = mha(x, x, x)
+        output2, _ = mha(x, x, x)
+
+        assert torch.allclose(output1, output2)
+
+    def test_train_mode_with_dropout(self):
+        """Test that training mode applies dropout."""
+        torch.manual_seed(42)
+        mha = MultiHeadAttention(d_model=256, n_heads=4, dropout=0.5)
+        mha.train()
+
+        x = torch.randn(2, 8, 256)
+        output1, _ = mha(x, x, x)
+        output2, _ = mha(x, x, x)
+
+        # With dropout, outputs should differ
+        assert not torch.allclose(output1, output2)
+
+    def test_batch_independence(self):
+        """Test that batches are processed independently."""
+        mha = MultiHeadAttention(d_model=256, n_heads=4, dropout=0.0)
+        mha.eval()
+
+        x = torch.randn(2, 8, 256)
+
+        output_batched, _ = mha(x, x, x)
+        output0, _ = mha(x[0:1], x[0:1], x[0:1])
+        output1, _ = mha(x[1:2], x[1:2], x[1:2])
+
+        assert torch.allclose(output_batched[0:1], output0, atol=1e-5)
+        assert torch.allclose(output_batched[1:2], output1, atol=1e-5)
+
+    def test_different_d_model_and_heads(self):
+        """Test various d_model and n_heads combinations."""
+        configs = [
+            (128, 4),
+            (256, 8),
+            (512, 8),
+            (1024, 16),
+        ]
+
+        for d_model, n_heads in configs:
+            mha = MultiHeadAttention(d_model=d_model, n_heads=n_heads)
+            x = torch.randn(1, 4, d_model)
+            output, attn = mha(x, x, x)
+
+            assert output.shape == (1, 4, d_model)
+            assert attn.shape == (1, n_heads, 4, 4)
+
+    def test_cross_attention(self):
+        """Test cross-attention with different inputs for Q and K/V."""
+        mha = MultiHeadAttention(d_model=256, n_heads=4, dropout=0.0)
+
+        # Query from decoder, Key/Value from encoder
+        decoder_input = torch.randn(2, 5, 256)
+        encoder_output = torch.randn(2, 10, 256)
+
+        output, attn_weights = mha(decoder_input, encoder_output, encoder_output)
+
+        assert output.shape == (2, 5, 256)
+        assert attn_weights.shape == (2, 4, 5, 10)
+
+    def test_extra_repr(self):
+        """Test the extra_repr method."""
+        mha = MultiHeadAttention(d_model=512, n_heads=8)
+        repr_str = mha.extra_repr()
+
+        assert "d_model=512" in repr_str
+        assert "n_heads=8" in repr_str
+        assert "d_k=64" in repr_str
+
+    def test_linear_projections_used(self):
+        """Test that the linear projections actually transform the input."""
+        mha = MultiHeadAttention(d_model=64, n_heads=4)
+
+        # Use varied input to avoid uniform attention weights
+        torch.manual_seed(123)
+        x = torch.randn(1, 3, 64)
+
+        # Get output
+        output1, _ = mha(x, x, x)
+
+        # Modify the output projection weights and verify output changes
+        # (changing W_O is more reliable than W_Q for testing)
+        with torch.no_grad():
+            mha.w_o.weight.fill_(0.5)
+
+        output2, _ = mha(x, x, x)
+
+        # Outputs should be different after changing weights
+        assert not torch.allclose(output1, output2)
+
+
+class TestMultiHeadAttentionIntegration:
+    """Integration tests for MultiHeadAttention with other components."""
+
+    def test_with_combined_masks(self):
+        """Test MultiHeadAttention with combined causal and padding masks."""
+        mha = MultiHeadAttention(d_model=256, n_heads=4, dropout=0.0)
+        seq_len = 6
+        batch = 2
+
+        x = torch.randn(batch, seq_len, 256)
+
+        # Create combined mask
+        causal_mask = create_causal_mask(seq_len)
+        seq = torch.tensor([[1, 2, 3, 4, 0, 0], [1, 2, 3, 0, 0, 0]])
+        pad_mask = create_padding_mask(seq, pad_idx=0)
+        combined_mask = causal_mask | pad_mask
+
+        output, attn_weights = mha(x, x, x, mask=combined_mask)
+
+        # Should produce valid output
+        assert not torch.isnan(output).any()
+        assert not torch.isinf(output).any()
+
+    def test_sequence_of_operations(self):
+        """Test MultiHeadAttention in a sequence of operations (like in a layer)."""
+        d_model = 256
+        mha = MultiHeadAttention(d_model=d_model, n_heads=4, dropout=0.0)
+        layer_norm = nn.LayerNorm(d_model)
+
+        x = torch.randn(2, 8, d_model)
+
+        # Simulate a transformer sub-layer with residual connection
+        attn_output, _ = mha(x, x, x)
+        output = layer_norm(x + attn_output)
+
+        assert output.shape == x.shape
+        assert not torch.isnan(output).any()
+
+    def test_matches_expected_behavior(self):
+        """Test that the output changes appropriately with masked inputs."""
+        mha = MultiHeadAttention(d_model=128, n_heads=4, dropout=0.0)
+
+        # Create input where last position is different
+        x = torch.randn(1, 4, 128)
+
+        # Without mask - all positions can attend to position 3
+        output_no_mask, _ = mha(x, x, x)
+
+        # With causal mask - position 0 cannot see positions 1, 2, 3
+        mask = create_causal_mask(4)
+        output_with_mask, attn_weights = mha(x, x, x, mask=mask)
+
+        # The outputs should be different because attention patterns differ
+        # Specifically, first position's output should differ
+        assert not torch.allclose(output_no_mask[0, 0], output_with_mask[0, 0])
+
+        # But note: due to causal mask, last position sees everything (no masking)
+        # so its attention pattern might be similar

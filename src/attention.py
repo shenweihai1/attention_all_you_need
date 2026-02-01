@@ -177,3 +177,120 @@ def create_padding_mask(
     # (batch, seq_len) -> (batch, 1, 1, seq_len)
     mask = (seq == pad_idx).unsqueeze(1).unsqueeze(2)
     return mask
+
+
+class MultiHeadAttention(nn.Module):
+    """
+    Multi-Head Attention mechanism as described in "Attention Is All You Need".
+
+    MultiHead(Q, K, V) = Concat(head_1, ..., head_h) W^O
+    where head_i = Attention(Q W_i^Q, K W_i^K, V W_i^V)
+
+    This implementation does NOT use torch.nn.MultiheadAttention, as per project requirements.
+    Instead, it manually implements the multi-head attention using linear projections
+    and the scaled dot-product attention from this module.
+
+    Args:
+        d_model: Model dimension (size of input/output embeddings)
+        n_heads: Number of attention heads
+        dropout: Dropout probability for attention weights. Default: 0.0
+
+    Raises:
+        ValueError: If d_model is not divisible by n_heads
+
+    Example:
+        >>> mha = MultiHeadAttention(d_model=512, n_heads=8, dropout=0.1)
+        >>> x = torch.randn(2, 10, 512)  # (batch, seq_len, d_model)
+        >>> output, attn_weights = mha(x, x, x)
+        >>> output.shape
+        torch.Size([2, 10, 512])
+        >>> attn_weights.shape
+        torch.Size([2, 8, 10, 10])
+    """
+
+    def __init__(self, d_model: int, n_heads: int, dropout: float = 0.0):
+        super().__init__()
+
+        if d_model % n_heads != 0:
+            raise ValueError(
+                f"d_model ({d_model}) must be divisible by n_heads ({n_heads})"
+            )
+
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_k = d_model // n_heads  # Dimension per head
+
+        # Linear projections for Q, K, V
+        # Each projects from d_model to d_model (all heads combined)
+        self.w_q = nn.Linear(d_model, d_model, bias=False)
+        self.w_k = nn.Linear(d_model, d_model, bias=False)
+        self.w_v = nn.Linear(d_model, d_model, bias=False)
+
+        # Output projection
+        self.w_o = nn.Linear(d_model, d_model, bias=False)
+
+        # Dropout for attention weights
+        self.dropout = nn.Dropout(p=dropout) if dropout > 0 else None
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Apply multi-head attention.
+
+        Args:
+            query: Query tensor of shape (batch, seq_len_q, d_model)
+            key: Key tensor of shape (batch, seq_len_k, d_model)
+            value: Value tensor of shape (batch, seq_len_k, d_model)
+            mask: Optional boolean mask. True positions are masked (not attended).
+                  Shape should be broadcastable to (batch, n_heads, seq_len_q, seq_len_k)
+
+        Returns:
+            tuple of:
+                - Output tensor of shape (batch, seq_len_q, d_model)
+                - Attention weights of shape (batch, n_heads, seq_len_q, seq_len_k)
+        """
+        batch_size = query.size(0)
+        seq_len_q = query.size(1)
+        seq_len_k = key.size(1)
+
+        # Step 1: Linear projections
+        # (batch, seq_len, d_model) -> (batch, seq_len, d_model)
+        q = self.w_q(query)
+        k = self.w_k(key)
+        v = self.w_v(value)
+
+        # Step 2: Reshape to separate heads
+        # (batch, seq_len, d_model) -> (batch, seq_len, n_heads, d_k)
+        # -> (batch, n_heads, seq_len, d_k)
+        q = q.view(batch_size, seq_len_q, self.n_heads, self.d_k).transpose(1, 2)
+        k = k.view(batch_size, seq_len_k, self.n_heads, self.d_k).transpose(1, 2)
+        v = v.view(batch_size, seq_len_k, self.n_heads, self.d_k).transpose(1, 2)
+
+        # Step 3: Apply scaled dot-product attention to all heads in parallel
+        # q, k, v: (batch, n_heads, seq_len, d_k)
+        attn_output, attn_weights = scaled_dot_product_attention(
+            q, k, v, mask=mask, dropout=self.dropout
+        )
+
+        # Step 4: Concatenate heads
+        # (batch, n_heads, seq_len_q, d_k) -> (batch, seq_len_q, n_heads, d_k)
+        # -> (batch, seq_len_q, d_model)
+        attn_output = (
+            attn_output.transpose(1, 2)
+            .contiguous()
+            .view(batch_size, seq_len_q, self.d_model)
+        )
+
+        # Step 5: Final linear projection
+        output = self.w_o(attn_output)
+
+        return output, attn_weights
+
+    def extra_repr(self) -> str:
+        """Return extra representation for print."""
+        return f"d_model={self.d_model}, n_heads={self.n_heads}, d_k={self.d_k}"
