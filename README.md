@@ -37,6 +37,9 @@ attention_all_you_need/
 │   ├── transformer_config.py     # Model and training configurations
 │   └── base_config.json          # Default base model config
 ├── docs/                         # Documentation
+├── notebooks/                    # Jupyter tutorial notebooks
+│   ├── 01_training_tutorial.ipynb    # Step-by-step training guide
+│   └── 02_inference_tutorial.ipynb   # Inference and generation guide
 ├── requirements.txt              # Python dependencies
 └── pytest.ini                    # Pytest configuration
 ```
@@ -77,6 +80,19 @@ pip install sentencepiece
 
 # Optional: Install HuggingFace datasets for WMT data
 pip install datasets
+```
+
+## Tutorial Notebooks
+
+Interactive Jupyter notebooks are available to help you get started:
+
+- **[01_training_tutorial.ipynb](notebooks/01_training_tutorial.ipynb)** - Step-by-step guide covering data preparation, tokenization, model creation, and training with validation at each step
+- **[02_inference_tutorial.ipynb](notebooks/02_inference_tutorial.ipynb)** - Guide to loading models, greedy decoding, batch inference, and examining model internals
+
+Run them with:
+```bash
+cd notebooks
+jupyter notebook
 ```
 
 ## Quick Start
