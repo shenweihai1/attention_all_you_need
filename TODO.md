@@ -37,8 +37,11 @@ Deliverables:
   - PE(pos, 2i+1) = cos(pos/10000^(2i/d_model))
   - Pre-computed and registered as buffer for efficiency
 
-#### 3. Encoder and Decoder [NOT STARTED]
-- [ ] 3.1 Implement Encoder Layer (self-attention + FFN + residual + layer norm)
+#### 3. Encoder and Decoder [IN PROGRESS]
+- [x] 3.1 Implement Encoder Layer (self-attention + FFN + residual + layer norm)
+  - Multi-head self-attention with residual connection and layer norm
+  - Position-wise FFN with residual connection and layer norm
+  - Dropout on sublayer outputs before residual addition
 - [ ] 3.2 Implement Encoder Stack (N=6 layers for base model)
 - [ ] 3.3 Implement Decoder Layer (masked self-attention + cross-attention + FFN)
 - [ ] 3.4 Implement Decoder Stack (N=6 layers for base model)

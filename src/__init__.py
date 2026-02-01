@@ -16,3 +16,4 @@ from src.attention import (
 )
 from src.feedforward import PositionwiseFeedForward
 from src.positional_encoding import PositionalEncoding
+from src.encoder import EncoderLayer
