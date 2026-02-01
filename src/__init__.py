@@ -38,3 +38,9 @@ from src.label_smoothing import (
     LabelSmoothingCrossEntropy,
     label_smoothing_loss,
 )
+from src.trainer import (
+    Trainer,
+    TrainerConfig,
+    TrainingMetrics,
+    create_trainer,
+)
