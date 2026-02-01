@@ -18,6 +18,7 @@ Deliverables:
 - [x] 1.3 Create base configuration system for model hyperparameters
 
 #### 2. Core Transformer Components [COMPLETED]
+- [ ] *high* Make a comprehensive markdown book to explain the codebase to let beginners to understand what and why in the code.
 - [x] 2.1 Implement Scaled Dot-Product Attention
   - Implemented attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) V
   - Added optional masking support for decoder self-attention
