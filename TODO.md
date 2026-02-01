@@ -37,7 +37,7 @@ Deliverables:
   - PE(pos, 2i+1) = cos(pos/10000^(2i/d_model))
   - Pre-computed and registered as buffer for efficiency
 
-#### 3. Encoder and Decoder [IN PROGRESS]
+#### 3. Encoder and Decoder [COMPLETED]
 - [x] 3.1 Implement Encoder Layer (self-attention + FFN + residual + layer norm)
   - Multi-head self-attention with residual connection and layer norm
   - Position-wise FFN with residual connection and layer norm
@@ -50,7 +50,10 @@ Deliverables:
   - Masked multi-head self-attention (prevents attending to future positions)
   - Multi-head cross-attention (attends to encoder output)
   - Position-wise FFN with residual connections and layer normalization
-- [ ] 3.4 Implement Decoder Stack (N=6 layers for base model)
+- [x] 3.4 Implement Decoder Stack (N=6 layers for base model)
+  - Stack of N identical DecoderLayer modules
+  - Final layer normalization after all layers
+  - Supports target mask (causal) and memory mask (padding)
 
 #### 4. Full Transformer Model [NOT STARTED]
 - [ ] 4.1 Implement Input Embedding with scaling (multiply by sqrt(d_model))
