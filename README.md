@@ -394,6 +394,11 @@ config.save("my_config.json")
 config = TransformerConfig.load("my_config.json")
 ```
 
+## TODOs
+- [ ] Serve an open LLM with high throughput + low latency on your GPU, such as: continuous batching, **KV-cache**, Quantization, Rate limit, Metrics, **RAG**
+- [ ] Agent frameworks to implement apas
+- [ ] Small RAG projects
+
 ## Performance Tips
 
 1. **Use gradient accumulation** for larger effective batch sizes without more GPU memory
